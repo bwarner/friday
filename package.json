@@ -1,0 +1,24 @@
+{
+  "name": "friday",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Personal AI agent platform — content/persona automation with human-in-the-loop publishing.",
+  "scripts": {
+    "friday": "tsx src/cli.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest",
+    "@octokit/rest": "^21.0.2",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.7",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+drafts/
+voice/
+.env
+.env.local
+*.log
+.DS_Store
