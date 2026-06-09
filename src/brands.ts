@@ -18,6 +18,12 @@ export interface Brand {
   /** Post file extension (no dot). Both blogs are MDX. */
   ext: string;
   defaultBranch: string;
+  /** Repo-relative dir for post images, e.g. "public/images/posts". */
+  imagePath: string;
+  /** Public URL prefix for the metadata `image:` field, e.g. "/images/posts". */
+  imageUrlBase: string;
+  /** Appended to the hero-image prompt (M4) to keep generated art on-brand. */
+  imageStyle: string;
   /** System prompt: voice, audience, and guardrails. */
   voice: string;
   /**
@@ -61,6 +67,12 @@ export const brands: Record<string, Brand> = {
     contentPath: "content/posts",
     ext: "mdx",
     defaultBranch: "main",
+    imagePath: "public/images/posts",
+    imageUrlBase: "/images/posts",
+    imageStyle:
+      "Clean, modern technical editorial illustration. Muted, credible palette anchored on " +
+      "security blue and slate gray. Abstract networks, shields, packets, or circuitry — " +
+      "calm and authoritative, never cartoonish, alarmist, or stock-photo cliché.",
     voice: [
       "You write for the ScanSafeguard blog: security insights, vulnerability research,",
       "and network-defense strategy for technical security and IT audiences.",
@@ -89,6 +101,11 @@ export const brands: Record<string, Brand> = {
     contentPath: "content/posts",
     ext: "mdx",
     defaultBranch: "main",
+    imagePath: "public/images/posts",
+    imageUrlBase: "/images/posts",
+    imageStyle:
+      "Warm, approachable editorial illustration with a builder/maker feel. Friendly modern " +
+      "palette with WarnerWare blue (#277CEA) accents. Conceptual and human, not corporate stock.",
     voice: [
       "You write for WarnerWare, Byron Warner's personal site: a builder/entrepreneur voice",
       "covering software, AI, and running small businesses.",

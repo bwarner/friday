@@ -6,6 +6,8 @@ const SECRET_PATTERNS: RegExp[] = [
   /sk-ant-[A-Za-z0-9_-]+/g,
   /gh[pousr]_[A-Za-z0-9]{20,}/g,
   /ghs_[A-Za-z0-9]{20,}/g,
+  /sk-[A-Za-z0-9_-]{20,}/g, // OpenAI image keys
+  /xai-[A-Za-z0-9]{20,}/g, // xAI image keys
 ];
 
 function redact(value: unknown): unknown {

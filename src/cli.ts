@@ -4,10 +4,16 @@ import { basename } from "node:path";
 import { Command } from "commander";
 import { getBrand } from "./brands";
 import { draftPost } from "./agent";
-import { renderMarkdown, today } from "./render";
-import { publishDraft } from "./github";
+import { renderMarkdown, setImageMetadata, today } from "./render";
+import { publishDraft, type PublishAsset } from "./github";
+import { generateHeroImage } from "./image";
 import { buildVoiceProfile } from "./voice";
 import { log } from "./logger";
+
+/** Pull the first `key: "value"` out of a post's metadata block. */
+function metaField(markdown: string, key: string): string {
+  return markdown.match(new RegExp(`${key}:\\s*["'\`]([^"'\`]+)["'\`]`))?.[1] ?? "";
+}
 
 const program = new Command();
 program.name("friday").description("Personal content/persona agent").version("0.1.0");
@@ -62,6 +68,45 @@ program
   });
 
 /**
+ * friday image <file> --brand <key>
+ * Auto step (M4): generate a hero image for a finished draft via the configured
+ * provider (IMAGE_PROVIDER), save it next to the draft, and wire the `image:`
+ * metadata field. Explicit and opt-in, so you only spend on art you want.
+ */
+program
+  .command("image")
+  .argument("<file>", "Path to a drafted post file")
+  .requiredOption("-b, --brand <key>", "Brand key (scansafeguard | warnerware)")
+  .action(async (file: string, opts: { brand: string }) => {
+    const brand = getBrand(opts.brand);
+    const markdown = await readFile(file, "utf8");
+    const title = metaField(markdown, "title");
+    const description = metaField(markdown, "description");
+    const slug = basename(file, `.${brand.ext}`).replace(new RegExp(`^${brand.key}-`), "");
+
+    log.info("generating image", {
+      brand: brand.key,
+      slug,
+      provider: process.env.IMAGE_PROVIDER ?? "openai",
+    });
+    const image = await generateHeroImage(brand, title, description);
+
+    // Save the asset next to the draft (gitignored, like the draft itself).
+    const imgFile = file.replace(new RegExp(`\\.${brand.ext}$`), `.${image.ext}`);
+    await writeFile(imgFile, image.bytes);
+
+    // Wire the public URL into the post's metadata.
+    const url = `${brand.imageUrlBase}/${slug}.${image.ext}`;
+    await writeFile(file, setImageMetadata(markdown, url), "utf8");
+
+    log.info("image ready", { file: imgFile, url });
+    console.log(
+      `\n  Hero image generated\n  → ${imgFile}\n  metadata image: ${url}\n\n` +
+        `  Review it, then: pnpm friday publish ${file} --brand ${brand.key}\n`,
+    );
+  });
+
+/**
  * friday publish <file> --brand <key>
  * Gated step: opens a PR against the blog repo. You merge to publish.
  */
@@ -79,8 +124,22 @@ program
     const titleMatch = markdown.match(/title:\s*["'`]([^"'`]+)["'`]/);
     const title = titleMatch?.[1] ?? slug;
 
+    // Attach a sibling hero image if `friday image` generated one.
+    let asset: PublishAsset | undefined;
+    const imgFile = file.replace(new RegExp(`\\.${brand.ext}$`), ".png");
+    try {
+      const bytes = await readFile(imgFile);
+      asset = { path: `${brand.imagePath.replace(/\/$/, "")}/${slug}.png`, bytes };
+      log.info("attaching hero image", { imgFile, path: asset.path });
+    } catch {
+      log.warn("no hero image found — publishing without one", {
+        expected: imgFile,
+        hint: `run: pnpm friday image ${file} --brand ${brand.key}`,
+      });
+    }
+
     log.info("publishing", { brand: brand.key, slug });
-    const result = await publishDraft(brand, slug, markdown, title);
+    const result = await publishDraft(brand, slug, markdown, title, asset);
 
     log.info("PR opened", { prUrl: result.prUrl });
     console.log(`\n  PR opened → ${result.prUrl}\n  Merge it to publish.\n`);

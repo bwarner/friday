@@ -14,11 +14,20 @@ export interface PublishResult {
   path: string;
 }
 
+/** A binary asset (e.g. a hero image) to commit alongside the post. */
+export interface PublishAsset {
+  /** Repo-relative path, e.g. "public/images/posts/foo.png". */
+  path: string;
+  /** Raw file bytes. */
+  bytes: Buffer;
+}
+
 export async function publishDraft(
   brand: Brand,
   slug: string,
   markdown: string,
   title: string,
+  asset?: PublishAsset,
 ): Promise<PublishResult> {
   const token = process.env.GITHUB_TOKEN;
   if (!token) throw new Error("GITHUB_TOKEN is not set — needed to open the PR.");
@@ -46,6 +55,19 @@ export async function publishDraft(
     message: `post: ${title}`,
     content: Buffer.from(markdown, "utf8").toString("base64"),
   });
+
+  // Commit the hero image into the same PR, if one was generated (M4).
+  // Sequential commits on the branch — Octokit resolves the updated head.
+  if (asset) {
+    await octokit.repos.createOrUpdateFileContents({
+      owner,
+      repo,
+      path: asset.path,
+      branch,
+      message: `image: ${title}`,
+      content: asset.bytes.toString("base64"),
+    });
+  }
 
   // Open the PR — this is the approval gate.
   const pr = await octokit.pulls.create({
