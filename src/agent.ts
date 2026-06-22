@@ -71,3 +71,51 @@ export async function draftPost(brand: Brand, topic: string): Promise<Draft> {
   }
   return response.parsed_output;
 }
+
+/** Drop a ```mdx fenced wrapper if the model returns one. */
+function stripFence(text: string): string {
+  const fenced = text.match(/^```[a-zA-Z]*\n([\s\S]*?)\n```$/);
+  return fenced ? fenced[1].trim() : text;
+}
+
+/**
+ * Revise an existing draft in place (M5). Unlike draft, this edits the whole
+ * MDX file as text — metadata block included — so it preserves fields Friday
+ * doesn't model (image, published, date) and the existing slug. The brand voice
+ * still applies, so revisions stay in character. Returns the full updated MDX.
+ */
+export async function revisePost(
+  brand: Brand,
+  currentMarkdown: string,
+  feedback: string,
+): Promise<string> {
+  const system =
+    (await draftSystemPrompt(brand)) +
+    "\n\nYou are REVISING an existing post, not writing a new one. Return the COMPLETE " +
+    "updated MDX file and nothing else — no preamble, no code fences. Preserve the " +
+    "`export const metadata = {...}` block's shape and keep keys like image, published, " +
+    "and date unless the feedback explicitly asks to change them. Keep the single H1 in " +
+    "the body. Apply exactly what the feedback asks and leave everything else untouched.";
+
+  const response = await client.messages.create({
+    model: "claude-opus-4-8",
+    max_tokens: 16000,
+    thinking: { type: "adaptive" },
+    system,
+    messages: [
+      {
+        role: "user",
+        content:
+          `Current post:\n\n${currentMarkdown}\n\n---\n` +
+          `Revise it per this feedback:\n\n${feedback}`,
+      },
+    ],
+  });
+
+  const block = response.content.find((b) => b.type === "text");
+  const revised = block?.type === "text" ? stripFence(block.text.trim()) : "";
+  if (!revised) {
+    throw new Error(`Revise failed (stop_reason: ${response.stop_reason})`);
+  }
+  return revised;
+}

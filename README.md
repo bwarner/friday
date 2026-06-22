@@ -40,6 +40,9 @@ pnpm friday voice scansafeguard
 # Draft a post (writes to drafts/, publishes nothing). Uses the cached voice.
 pnpm friday draft "why FBA sellers should pentest their stack" --brand scansafeguard
 
+# Revise a draft in place per feedback (keeps metadata + slug, stays in voice)
+pnpm friday revise drafts/scansafeguard-<slug>.mdx "tighten the intro and fix the webhook code" --brand scansafeguard
+
 # Generate a hero image for the draft (writes drafts/<slug>.png, wires image: metadata)
 pnpm friday image drafts/scansafeguard-<slug>.mdx --brand scansafeguard
 
@@ -86,8 +89,8 @@ is added by `friday image` when you generate a hero (otherwise omitted).
 
 ```
 src/
-  cli.ts       voice · draft · image · publish commands
-  agent.ts     content agent — drafts a post (Anthropic SDK, structured output)
+  cli.ts       voice · draft · revise · image · publish commands
+  agent.ts     content agent — drafts & revises posts (Anthropic SDK, structured output)
   ingest.ts    pull + parse existing posts from a blog repo (Octokit, read-only)
   voice.ts     distill a per-brand voice profile, cache it, feed it to the draft step
   image.ts     pluggable hero-image generation (openai · google · xai)  ← M4
@@ -108,5 +111,6 @@ artifact).
 - **M2** draft pipeline ✅ (basic) → add a self-check pass (brand safety, no-secrets)
 - **M3** PR publish ✅ (basic) → engagement pull-back
 - **M4** hero imagery ✅ (`friday image`) — pluggable providers (OpenAI · Google · xAI)
-- **M5** scheduling + idea backlog (node-cron locally; Upstash QStash when off-laptop)
-- **M6** analytics loop, then fan out to travel / spend agents
+- **M5** in-place revision ✅ (`friday revise`) — edit a draft from feedback, in voice
+- **M6** scheduling + idea backlog (node-cron locally; Upstash QStash when off-laptop)
+- **M7** analytics loop, then fan out to travel / spend agents

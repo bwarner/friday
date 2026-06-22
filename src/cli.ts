@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { Command } from "commander";
 import { getBrand } from "./brands";
-import { draftPost } from "./agent";
+import { draftPost, revisePost } from "./agent";
 import { renderMarkdown, setImageMetadata, today } from "./render";
 import { publishDraft, type PublishAsset } from "./github";
 import { generateHeroImage } from "./image";
@@ -65,6 +65,38 @@ program
 
     log.info("draft ready", { file, title: draft.title });
     console.log(`\n  ${draft.title}\n  → ${file}\n\n  Review it, then: pnpm friday publish ${file} --brand ${brand.key}\n`);
+  });
+
+/**
+ * friday revise <file> "<feedback>" --brand <key>
+ * Auto step (M5): rewrite an existing draft in place per feedback, in the
+ * brand's voice. Edits the whole MDX as text, so metadata (image, published,
+ * date) and the slug survive. Re-run image/publish afterward as needed.
+ */
+program
+  .command("revise")
+  .argument("<file>", "Path to a drafted post file")
+  .argument("<feedback>", "What to change, in plain English")
+  .requiredOption("-b, --brand <key>", "Brand key (scansafeguard | warnerware)")
+  .action(async (file: string, feedback: string, opts: { brand: string }) => {
+    const brand = getBrand(opts.brand);
+    const current = await readFile(file, "utf8");
+
+    log.info("revising", { brand: brand.key, file });
+    const revised = await revisePost(brand, current, feedback);
+
+    // Guard against a malformed rewrite — never clobber a good draft with junk.
+    if (!/export const metadata\s*=/.test(revised) || !/^#\s+/m.test(revised)) {
+      throw new Error("Revision wasn't well-formed MDX — leaving the file unchanged.");
+    }
+    await writeFile(file, revised, "utf8");
+
+    const title = metaField(revised, "title");
+    log.info("revision ready", { file, title });
+    console.log(
+      `\n  Revised: ${title}\n  → ${file}\n\n` +
+        `  Review it, then: pnpm friday publish ${file} --brand ${brand.key}\n`,
+    );
   });
 
 /**
