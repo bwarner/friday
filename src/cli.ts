@@ -8,6 +8,7 @@ import { renderMarkdown, setImageMetadata, today } from "./render";
 import { publishDraft, type PublishAsset } from "./github";
 import { generateHeroImage } from "./image";
 import { buildVoiceProfile } from "./voice";
+import { selfCheck, reportCheck } from "./selfcheck";
 import { log } from "./logger";
 
 /** Pull the first `key: "value"` out of a post's metadata block. */
@@ -64,7 +65,16 @@ program
     await writeFile(file, markdown, "utf8");
 
     log.info("draft ready", { file, title: draft.title });
-    console.log(`\n  ${draft.title}\n  → ${file}\n\n  Review it, then: pnpm friday publish ${file} --brand ${brand.key}\n`);
+    console.log(`\n  ${draft.title}\n  → ${file}\n`);
+
+    // Early feedback only — the draft stays local (gitignored) either way.
+    // The authoritative gate re-runs at publish on the final bytes.
+    const check = await selfCheck(brand, markdown);
+    if (!reportCheck(check, "this draft — fix it before publishing")) {
+      process.exitCode = 1;
+      return;
+    }
+    console.log(`  Review it, then: pnpm friday publish ${file} --brand ${brand.key}\n`);
   });
 
 /**
@@ -93,10 +103,15 @@ program
 
     const title = metaField(revised, "title");
     log.info("revision ready", { file, title });
-    console.log(
-      `\n  Revised: ${title}\n  → ${file}\n\n` +
-        `  Review it, then: pnpm friday publish ${file} --brand ${brand.key}\n`,
-    );
+    console.log(`\n  Revised: ${title}\n  → ${file}\n`);
+
+    // Early feedback only — publish re-runs the authoritative gate.
+    const check = await selfCheck(brand, revised);
+    if (!reportCheck(check, "this revision — fix it before publishing")) {
+      process.exitCode = 1;
+      return;
+    }
+    console.log(`  Review it, then: pnpm friday publish ${file} --brand ${brand.key}\n`);
   });
 
 /**
@@ -146,7 +161,8 @@ program
   .command("publish")
   .argument("<file>", "Path to a drafted post file")
   .requiredOption("-b, --brand <key>", "Brand key (scansafeguard | warnerware)")
-  .action(async (file: string, opts: { brand: string }) => {
+  .option("--force", "Skip the self-check gate (use when a block is a false positive)")
+  .action(async (file: string, opts: { brand: string; force?: boolean }) => {
     const brand = getBrand(opts.brand);
     const markdown = await readFile(file, "utf8");
 
@@ -155,6 +171,22 @@ program
     // Title lives in the MDX `export const metadata = {...}` block, e.g. `  title: "...",`.
     const titleMatch = markdown.match(/title:\s*["'`]([^"'`]+)["'`]/);
     const title = titleMatch?.[1] ?? slug;
+
+    // M2 gate — the authoritative check, on the exact bytes about to be
+    // committed. Runs here (not just at draft) because the file may have been
+    // revised or hand-edited since it was generated, and publishing puts the
+    // content into remote git history before any human reviews the PR.
+    if (opts.force) {
+      log.warn("self-check SKIPPED via --force", { file });
+    } else {
+      log.info("self-check", { brand: brand.key, file });
+      const check = await selfCheck(brand, markdown);
+      if (!reportCheck(check, "this publish — nothing was committed")) {
+        console.log(`  Fix the issues (or re-run with --force if it's a false positive).\n`);
+        process.exitCode = 1;
+        return;
+      }
+    }
 
     // Attach a sibling hero image if `friday image` generated one.
     let asset: PublishAsset | undefined;

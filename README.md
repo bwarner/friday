@@ -50,6 +50,12 @@ pnpm friday image drafts/scansafeguard-<slug>.mdx --brand scansafeguard
 pnpm friday publish drafts/scansafeguard-<slug>.mdx --brand scansafeguard
 ```
 
+Every `publish` runs a **self-check gate** (Haiku) on the exact bytes about to be
+committed — real-looking secrets, PII, or legally risky claims abort before anything
+touches the remote. `draft`/`revise` run the same check as early feedback. A false
+positive (security posts contain fictional keys on purpose) can be overridden with
+`publish --force`.
+
 `voice` is optional but recommended — without it, `draft` falls back to the brand's
 base voice and logs a hint. Re-run `voice` whenever the blog gains new posts.
 
@@ -94,6 +100,7 @@ src/
   ingest.ts    pull + parse existing posts from a blog repo (Octokit, read-only)
   voice.ts     distill a per-brand voice profile, cache it, feed it to the draft step
   image.ts     pluggable hero-image generation (openai · google · xai)  ← M4
+  selfcheck.ts pre-publish safety gate (secrets/PII/off-brand, fail-closed)  ← M2
   brands.ts    brand registry (repo, path, metadata shape, voice, image style)
   github.ts    publish = open a PR (Octokit)  ← the approval gate
   render.ts    metadata export + H1 + body → MDX
@@ -108,7 +115,7 @@ artifact).
 
 - **M0** scaffold + brand registry + redacting logger ✅ (this)
 - **M1** voice ingestion: learn each blog's voice from existing posts ✅ (`friday voice`)
-- **M2** draft pipeline ✅ (basic) → add a self-check pass (brand safety, no-secrets)
+- **M2** draft pipeline ✅ + self-check gate ✅ (fail-closed at publish, feedback at draft/revise)
 - **M3** PR publish ✅ (basic) → engagement pull-back
 - **M4** hero imagery ✅ (`friday image`) — pluggable providers (OpenAI · Google · xAI)
 - **M5** in-place revision ✅ (`friday revise`) — edit a draft from feedback, in voice
